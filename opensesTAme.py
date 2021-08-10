@@ -1,4 +1,5 @@
 #! /usr/bin/python3
+# Licensing: See the LICENSE file
 
 import sys, os
 from math import log
