@@ -93,7 +93,7 @@ fn dump_sqlitedb(ta_file_content: &[char]) {
 }
 
 fn main() {
-    const TA_EXPECTED_SIZE_BYTES: usize = 2097152;
+    const TA_EXPECTED_SIZE_BYTES: usize = 2097152; /* TODO: SMxxxx devices seem to use a new format. */
     let action: String = std::env::args().nth(1).expect("No action given. Try unTAmed help.");
 
     // We are helpful around here. Want help? Get help.
