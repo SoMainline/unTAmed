@@ -1,0 +1,33 @@
+name: build
+
+on: [push, pull_request]
+jobs:
+  cargo_fmt:
+    runs-on: ubuntu-latest
+    name: Check cargo formatting
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        profile: minimal
+    - name: Run cargo fmt
+      uses: actions-rs/cargo@v1
+      with:
+        command: fmt
+        args: --all -- --check
+
+  cargo_clippy:
+    runs-on: ubuntu-latest
+    name: Check cargo clippy
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        profile: minimal
+    - name: Run cargo clippy
+      uses: actions-rs/cargo@v1
+      with:
+        command: clippy
+        args: --all --all-targets -- -D warnings
