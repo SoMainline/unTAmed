@@ -1,6 +1,6 @@
 // Licensing: See the LICENSE file
 
-use std::fs::{write,File};
+use std::fs::{write, File};
 use std::io::prelude::*;
 
 fn print_help() {
@@ -16,19 +16,19 @@ fn print_help() {
 static BOOTLOG_OFFSET: [usize; 11] = [
     0,       // 0-element, ignore
     0x2A22E, // 1
-	0x2DA22, // 2
-	0x31CEE, // 3
-	0x3542A, // 4
-	0x38C46, // 5
-	0x3C7A2, // 6
-	0x65412, // 7
-	0x68C2E, // 8
-	0x6C78A, // 9
-	0x70A2E, // 10
+    0x2DA22, // 2
+    0x31CEE, // 3
+    0x3542A, // 4
+    0x38C46, // 5
+    0x3C7A2, // 6
+    0x65412, // 7
+    0x68C2E, // 8
+    0x6C78A, // 9
+    0x70A2E, // 10
 ];
 
 fn read_ta(ta_file_content: &[char], offset: usize, length: usize) -> String {
-    return ta_file_content[offset..offset+length].iter().collect();
+    return ta_file_content[offset..offset + length].iter().collect();
 }
 
 fn dump_bootlogs(ta_file_content: &[char]) {
@@ -38,7 +38,11 @@ fn dump_bootlogs(ta_file_content: &[char]) {
     let mut bootlogs: [String; 11] = Default::default();
     let mut temp_filename: String;
     for i in 1..11 {
-        println!("Dumping bootlog {} at {}..", i, format!("{:X}", BOOTLOG_OFFSET[i]));
+        println!(
+            "Dumping bootlog {} at {}..",
+            i,
+            format!("{:X}", BOOTLOG_OFFSET[i])
+        );
         bootlogs[i] = read_ta(ta_file_content, BOOTLOG_OFFSET[i], BOOTLOG_SIZE);
         temp_filename = format!("bootlogs/bootlog{}.txt", i);
         println!("writing to {}", temp_filename);
@@ -67,15 +71,24 @@ fn dump_sqlitedb(ta_file_content: &[char]) {
     const SQLITEDB_OFFSET: usize = 0x20044;
     const SQLITEDB_HEADER_SIZEVAL_OFF: usize = 16;
 
-    let sqlitedb_len: String = read_ta(ta_file_content , SQLITEDB_OFFSET+SQLITEDB_HEADER_SIZEVAL_OFF, 2);
+    let sqlitedb_len: String = read_ta(
+        ta_file_content,
+        SQLITEDB_OFFSET + SQLITEDB_HEADER_SIZEVAL_OFF,
+        2,
+    );
     // Swap byte order to LE
-    let mut sqlitedb_len: usize = (sqlitedb_len.as_bytes()[0] + (sqlitedb_len.as_bytes()[1]<<2)) as usize;
-    println!("SQLite DB size: 2^{:?} ({} B)", sqlitedb_len, (2 as i32).pow(sqlitedb_len as u32));
+    let mut sqlitedb_len: usize =
+        (sqlitedb_len.as_bytes()[0] + (sqlitedb_len.as_bytes()[1] << 2)) as usize;
+    println!(
+        "SQLite DB size: 2^{:?} ({} B)",
+        sqlitedb_len,
+        (2 as i32).pow(sqlitedb_len as u32)
+    );
 
     sqlitedb_len = (2 as usize).pow(sqlitedb_len as u32);
 
     let mut sqlitedb: Vec<char> = Default::default();
-    sqlitedb.extend(ta_file_content[SQLITEDB_OFFSET..SQLITEDB_OFFSET+sqlitedb_len].iter());
+    sqlitedb.extend(ta_file_content[SQLITEDB_OFFSET..SQLITEDB_OFFSET + sqlitedb_len].iter());
     let sqlitedb: Vec<u8> = sqlitedb.iter().map(|c| *c as u8).collect::<Vec<_>>();
 
     write("sqlite.db", sqlitedb).expect("Could not dump SQLite DB..");
@@ -86,24 +99,38 @@ fn dump_sqlitedb(ta_file_content: &[char]) {
     };
 
     if sqlitedb_file.metadata().unwrap().len() as usize != sqlitedb_len {
-        panic!("SQLite DB file size mismatch! Got {}, expected {}", sqlitedb_file.metadata().unwrap().len(), sqlitedb_len)
+        panic!(
+            "SQLite DB file size mismatch! Got {}, expected {}",
+            sqlitedb_file.metadata().unwrap().len(),
+            sqlitedb_len
+        )
     }
-    
+
     println!("Saved results to sqlite.db!");
 }
 
 fn main() {
     const TA_EXPECTED_SIZE_BYTES: usize = 2097152; /* TODO: SMxxxx devices seem to use a new format. */
-    let action: String = std::env::args().nth(1).expect("No action given. Try unTAmed help.");
+    let action: String = std::env::args()
+        .nth(1)
+        .expect("No action given. Try unTAmed help.");
 
     // We are helpful around here. Want help? Get help.
-    if action == "help" { print_help(); std::process::exit(0); };
+    if action == "help" {
+        print_help();
+        std::process::exit(0);
+    };
 
-    let filename: String = std::env::args().nth(2).expect("No filename given. Try unTAmed help.");
+    let filename: String = std::env::args()
+        .nth(2)
+        .expect("No filename given. Try unTAmed help.");
     let num_args: usize = std::env::args().len();
 
     // Not enough arguments to mess with TA -> print help
-    if num_args < 3 { print_help(); std::process::exit(0); };
+    if num_args < 3 {
+        print_help();
+        std::process::exit(0);
+    };
 
     println!("Opening file: {}", filename);
 
@@ -113,9 +140,12 @@ fn main() {
     };
 
     match ta_file.metadata().unwrap().len() as usize {
-        TA_EXPECTED_SIZE_BYTES => println!{"TA size in tact, proceeding.."},
-        _ => panic!("TA size mismatch, got: {} expected: {}. Is your dump corrupted?",
-            ta_file.metadata().unwrap().len(), TA_EXPECTED_SIZE_BYTES),
+        TA_EXPECTED_SIZE_BYTES => println! {"TA size in tact, proceeding.."},
+        _ => panic!(
+            "TA size mismatch, got: {} expected: {}. Is your dump corrupted?",
+            ta_file.metadata().unwrap().len(),
+            TA_EXPECTED_SIZE_BYTES
+        ),
     }
 
     let mut content: Vec<u8> = Vec::new();
