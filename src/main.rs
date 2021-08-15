@@ -1,8 +1,8 @@
 // Licensing: See the LICENSE file
 
 use clap::{AppSettings, ArgEnum, Clap};
-use std::fs::{write, File};
-use std::io::{prelude::*, Result};
+use std::fs::{read, write};
+use std::io::Result;
 use std::path::PathBuf;
 
 #[derive(ArgEnum, Copy, Clone, Debug)]
@@ -58,11 +58,11 @@ struct Opts {
     func: Func,
 }
 
-fn read_ta(ta_file_content: &[char], offset: usize, length: usize) -> String {
-    return ta_file_content[offset..offset + length].iter().collect();
+fn read_ta(ta_file_content: &[u8], offset: usize, length: usize) -> &[u8] {
+    &ta_file_content[offset..offset + length]
 }
 
-fn dump_bootlogs(platform: Platform, ta_file_content: &[char]) {
+fn dump_bootlogs(platform: Platform, ta_file_content: &[u8]) {
     const BOOTLOG_SIZE: usize = 14309;
 
     for (i, &offset) in platform.bootlog_offset().iter().enumerate() {
@@ -70,62 +70,48 @@ fn dump_bootlogs(platform: Platform, ta_file_content: &[char]) {
         let bootlog = read_ta(ta_file_content, offset, BOOTLOG_SIZE);
         let filename = format!("bootlogs/bootlog{}.txt", i);
         println!("writing to {}", filename);
-        write(filename, &bootlog).expect("Could not dump bootlog..");
+        write(filename, bootlog).expect("Could not dump bootlog..");
     }
 }
 
-fn show_build(ta_file_content: &[char]) {
+fn show_build(ta_file_content: &[u8]) {
     const VERSION_OFFSET: usize = 0x7B4;
     // 32 is an educated guess, it's actually 29 on Tama-Akari
     const VERSION_SIZE: usize = 32;
 
-    let build_id: String = read_ta(ta_file_content, VERSION_OFFSET, VERSION_SIZE);
-    println!("Image version: {}", build_id);
+    let build_id = read_ta(ta_file_content, VERSION_OFFSET, VERSION_SIZE);
+    println!("Image version: {}", std::str::from_utf8(build_id).unwrap());
 }
 
-fn show_serialno(ta_file_content: &[char]) {
+fn show_serialno(ta_file_content: &[u8]) {
     const SERIAL_OFFSET: usize = 0x600B4;
     const SERIAL_SIZE: usize = 10;
 
-    let serial_no: String = read_ta(ta_file_content, SERIAL_OFFSET, SERIAL_SIZE);
-    println!("Serial no.: {}", serial_no);
+    let serial_no = read_ta(ta_file_content, SERIAL_OFFSET, SERIAL_SIZE);
+    println!("Serial no.: {}", std::str::from_utf8(serial_no).unwrap());
 }
 
-fn dump_sqlitedb(ta_file_content: &[char]) -> Result<()> {
+fn dump_sqlitedb(ta_file_content: &[u8]) -> Result<()> {
     const SQLITEDB_OFFSET: usize = 0x20044;
     const SQLITEDB_HEADER_SIZEVAL_OFF: usize = 16;
 
-    let sqlitedb_len: String = read_ta(
+    let sqlitedb_len = read_ta(
         ta_file_content,
         SQLITEDB_OFFSET + SQLITEDB_HEADER_SIZEVAL_OFF,
         2,
     );
-    // Swap byte order to LE
-    let mut sqlitedb_len: usize =
-        (sqlitedb_len.as_bytes()[0] + (sqlitedb_len.as_bytes()[1] << 2)) as usize;
+
+    let sqlitedb_len = sqlitedb_len[0] as usize + ((sqlitedb_len[1] as usize) << 8);
     println!(
-        "SQLite DB size: 2^{:?} ({} B)",
+        "SQLite DB size: 2^{} ({} B)",
         sqlitedb_len,
-        (2i32).pow(sqlitedb_len as u32)
+        2usize.pow(sqlitedb_len as u32)
     );
 
-    sqlitedb_len = (2usize).pow(sqlitedb_len as u32);
-
-    let mut sqlitedb: Vec<char> = Default::default();
-    sqlitedb.extend(ta_file_content[SQLITEDB_OFFSET..SQLITEDB_OFFSET + sqlitedb_len].iter());
-    let sqlitedb: Vec<u8> = sqlitedb.iter().map(|c| *c as u8).collect::<Vec<_>>();
+    let sqlitedb_len = 2usize.pow(sqlitedb_len as u32);
+    let sqlitedb = &ta_file_content[SQLITEDB_OFFSET..SQLITEDB_OFFSET + sqlitedb_len];
 
     write("sqlite.db", sqlitedb).expect("Could not dump SQLite DB..");
-
-    let sqlitedb_file = File::open("sqlite.db")?;
-
-    if sqlitedb_file.metadata().unwrap().len() as usize != sqlitedb_len {
-        panic!(
-            "SQLite DB file size mismatch! Got {}, expected {}",
-            sqlitedb_file.metadata().unwrap().len(),
-            sqlitedb_len
-        )
-    }
 
     println!("Saved results to sqlite.db!");
 
@@ -139,27 +125,20 @@ fn main() -> Result<()> {
 
     println!("Opening file: {:?}", opts.file);
 
-    let mut ta_file = File::open(opts.file)?;
-
-    match ta_file.metadata().unwrap().len() as usize {
-        TA_EXPECTED_SIZE_BYTES => println! {"TA size in tact, proceeding.."},
-        _ => panic!(
-            "TA size mismatch, got: {} expected: {}. Is your dump corrupted?",
-            ta_file.metadata().unwrap().len(),
-            TA_EXPECTED_SIZE_BYTES
-        ),
-    }
-
-    let mut content: Vec<u8> = Vec::new();
-    ta_file.read_to_end(&mut content)?;
+    let content = read(opts.file)?;
+    assert_eq!(
+        content.len(),
+        TA_EXPECTED_SIZE_BYTES,
+        "TA size mismatch, got: {} expected: {}. Is your dump corrupted?",
+        content.len(),
+        TA_EXPECTED_SIZE_BYTES
+    );
 
     // TA magic, seems to be common for all generations
-    if content[0] != 0xC1 && content[1] != 0xE9 {
-        println!("TA header mismatch!");
+    if content[0..2] != [0xC1, 0xE9] {
+        eprintln!("TA header mismatch!");
         return Ok(());
     }
-
-    let content: Vec<char> = content.iter().map(|b| *b as char).collect::<Vec<_>>();
 
     match opts.func {
         Func::DumpBootlogs { platform } => dump_bootlogs(platform, &content),
