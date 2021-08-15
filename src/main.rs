@@ -1,7 +1,7 @@
 // Licensing: See the LICENSE file
 
 use std::fs::{write, File};
-use std::io::prelude::*;
+use std::io::{prelude::*, Result};
 
 fn print_help() {
     println!("Usage: ./untamed func filename");
@@ -67,7 +67,7 @@ fn show_serialno(ta_file_content: &[char]) {
     println!("Serial no.: {}", serial_no);
 }
 
-fn dump_sqlitedb(ta_file_content: &[char]) {
+fn dump_sqlitedb(ta_file_content: &[char]) -> Result<()> {
     const SQLITEDB_OFFSET: usize = 0x20044;
     const SQLITEDB_HEADER_SIZEVAL_OFF: usize = 16;
 
@@ -93,10 +93,7 @@ fn dump_sqlitedb(ta_file_content: &[char]) {
 
     write("sqlite.db", sqlitedb).expect("Could not dump SQLite DB..");
 
-    let sqlitedb_file = match File::open("sqlite.db") {
-        Ok(sqlitedb_file) => sqlitedb_file,
-        Err(e) => panic!("Could not access sqlite.db! err: {}", e),
-    };
+    let sqlitedb_file = File::open("sqlite.db")?;
 
     if sqlitedb_file.metadata().unwrap().len() as usize != sqlitedb_len {
         panic!(
@@ -107,9 +104,11 @@ fn dump_sqlitedb(ta_file_content: &[char]) {
     }
 
     println!("Saved results to sqlite.db!");
+
+    Ok(())
 }
 
-fn main() {
+fn main() -> Result<()> {
     const TA_EXPECTED_SIZE_BYTES: usize = 2097152; /* TODO: SMxxxx devices seem to use a new format. */
     let action: String = std::env::args()
         .nth(1)
@@ -118,7 +117,7 @@ fn main() {
     // We are helpful around here. Want help? Get help.
     if action == "help" {
         print_help();
-        std::process::exit(0);
+        return Ok(());
     };
 
     let filename: String = std::env::args()
@@ -129,15 +128,12 @@ fn main() {
     // Not enough arguments to mess with TA -> print help
     if num_args < 3 {
         print_help();
-        std::process::exit(0);
+        return Ok(());
     };
 
     println!("Opening file: {}", filename);
 
-    let mut ta_file = match File::open(filename) {
-        Ok(ta_file) => ta_file,
-        Err(e) => panic!("Could not open file: {:?}", e),
-    };
+    let mut ta_file = File::open(filename)?;
 
     match ta_file.metadata().unwrap().len() as usize {
         TA_EXPECTED_SIZE_BYTES => println! {"TA size in tact, proceeding.."},
@@ -149,22 +145,22 @@ fn main() {
     }
 
     let mut content: Vec<u8> = Vec::new();
-    if let Err(e) = ta_file.read_to_end(&mut content) {
-        panic!("Unable to read contents of the file: {:?}", e)
-    }
+    ta_file.read_to_end(&mut content)?;
 
     if content[0] != 0xC1 && content[1] != 0xE9 {
         println!("TA header mismatch!");
-        std::process::exit(0);
+        return Ok(());
     }
 
     let content: Vec<char> = content.iter().map(|b| *b as char).collect::<Vec<_>>();
 
     match action.as_str() {
         "dump_bootlogs" => dump_bootlogs(&content),
-        "dump_sqlitedb" => dump_sqlitedb(&content),
+        "dump_sqlitedb" => dump_sqlitedb(&content)?,
         "show_build" => show_build(&content),
         "show_serialno" => show_serialno(&content),
         _ => println!("Unknown operation '{}'", action), // How did we get here?
     }
+
+    Ok(())
 }
