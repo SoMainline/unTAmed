@@ -149,7 +149,9 @@ fn main() {
     }
 
     let mut content: Vec<u8> = Vec::new();
-    if let Err(e) = ta_file.read_to_end(&mut content) { panic!("Unable to read contents of the file: {:?}", e) }
+    if let Err(e) = ta_file.read_to_end(&mut content) {
+        panic!("Unable to read contents of the file: {:?}", e)
+    }
 
     if content[0] != 0xC1 && content[1] != 0xE9 {
         println!("TA header mismatch!");
