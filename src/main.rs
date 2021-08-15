@@ -94,12 +94,13 @@ fn dump_sqlitedb(ta_file_content: &[char]) {
 
 fn main() {
     const TA_EXPECTED_SIZE_BYTES: usize = 2097152;
-    let action: String = std::env::args().nth(1).expect("No action given.");
-    let filename: String = std::env::args().nth(2).expect("No filename given.");
-    let num_args: usize = std::env::args().len();
+    let action: String = std::env::args().nth(1).expect("No action given. Try unTAmed help.");
 
     // We are helpful around here. Want help? Get help.
     if action == "help" { print_help(); std::process::exit(0); };
+
+    let filename: String = std::env::args().nth(2).expect("No filename given. Try unTAmed help.");
+    let num_args: usize = std::env::args().len();
 
     // Not enough arguments to mess with TA -> print help
     if num_args < 3 { print_help(); std::process::exit(0); };
