@@ -147,6 +147,7 @@ fn main() -> Result<()> {
     let mut content: Vec<u8> = Vec::new();
     ta_file.read_to_end(&mut content)?;
 
+    // TA magic, seems to be common for all generations
     if content[0] != 0xC1 && content[1] != 0xE9 {
         println!("TA header mismatch!");
         return Ok(());
