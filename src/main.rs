@@ -27,6 +27,10 @@ static BOOTLOG_OFFSET: [usize; 11] = [
 	0x70A2E, // 10
 ];
 
+fn read_ta(ta_file_content: &[char], offset: usize, length: usize) -> String {
+    return ta_file_content[offset..offset+length].iter().collect();
+}
+
 fn dump_bootlogs(ta_file_content: &[char]) {
     const BOOTLOG_SIZE: usize = 14309;
 
@@ -35,7 +39,7 @@ fn dump_bootlogs(ta_file_content: &[char]) {
     let mut temp_filename: String;
     for i in 1..11 {
         println!("Dumping bootlog {} at {}..", i, format!("{:X}", BOOTLOG_OFFSET[i]));
-        bootlogs[i] = ta_file_content[BOOTLOG_OFFSET[i]..BOOTLOG_OFFSET[i]+BOOTLOG_SIZE].iter().collect();
+        bootlogs[i] = read_ta(ta_file_content, BOOTLOG_OFFSET[i], BOOTLOG_SIZE);
         temp_filename = format!("bootlogs/bootlog{}.txt", i);
         println!("writing to {}", temp_filename);
         write(temp_filename, &bootlogs[i]).expect("Could not dump bootlog..");
@@ -47,7 +51,7 @@ fn show_build(ta_file_content: &[char]) {
     // 32 is an educated guess, it's actually 29 on Tama-Akari
     const VERSION_SIZE: usize = 32;
 
-    let build_id: String = ta_file_content[VERSION_OFFSET..VERSION_OFFSET+VERSION_SIZE].iter().collect();
+    let build_id: String = read_ta(ta_file_content, VERSION_OFFSET, VERSION_SIZE);
     println!("Image version: {}", build_id);
 }
 
@@ -55,7 +59,7 @@ fn show_serialno(ta_file_content: &[char]) {
     const SERIAL_OFFSET: usize = 0x600B4;
     const SERIAL_SIZE: usize = 10;
 
-    let serial_no: String = ta_file_content[SERIAL_OFFSET..SERIAL_OFFSET+SERIAL_SIZE].iter().collect();
+    let serial_no: String = read_ta(ta_file_content, SERIAL_OFFSET, SERIAL_SIZE);
     println!("Serial no.: {}", serial_no);
 }
 
@@ -63,7 +67,7 @@ fn dump_sqlitedb(ta_file_content: &[char]) {
     const SQLITEDB_OFFSET: usize = 0x20044;
     const SQLITEDB_HEADER_SIZEVAL_OFF: usize = 16;
 
-    let sqlitedb_len: String = ta_file_content[SQLITEDB_OFFSET+SQLITEDB_HEADER_SIZEVAL_OFF..SQLITEDB_OFFSET+SQLITEDB_HEADER_SIZEVAL_OFF+2].iter().collect();
+    let sqlitedb_len: String = read_ta(ta_file_content , SQLITEDB_OFFSET+SQLITEDB_HEADER_SIZEVAL_OFF, 2);
     // Swap byte order to LE
     let mut sqlitedb_len: usize = (sqlitedb_len.as_bytes()[0] + (sqlitedb_len.as_bytes()[1]<<2)) as usize;
     println!("SQLite DB size: 2^{:?} ({} B)", sqlitedb_len, (2 as i32).pow(sqlitedb_len as u32));
