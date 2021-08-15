@@ -1,16 +1,31 @@
 // Licensing: See the LICENSE file
 
+use clap::{AppSettings, Clap};
 use std::fs::{write, File};
 use std::io::{prelude::*, Result};
+use std::path::PathBuf;
 
-fn print_help() {
-    println!("Usage: ./untamed func filename");
-    println!("Where func is one of:");
-    println!("\thelp - prints this message");
-    println!("\tdump_bootlogs - dumps boot logs (TA stores up to ten of these)");
-    println!("\tdump_sqlitedb - dumps the internal SQLite database");
-    println!("\tshow_buildid - shows build number");
-    println!("\tshow_serial - shows serial number");
+#[derive(Clap)]
+enum Func {
+    /// Dump boot logs (TA stores up to ten of these)
+    DumpBootlogs,
+    /// Dump the internal SQLite database
+    DumpSqlitedb,
+    /// Show build number
+    ShowBuildid,
+    /// Show serial number
+    ShowSerial,
+}
+
+/// unTAmed is an OSS tool for inspecting the data contained inside the TA (Trim Area) as found on SoMC devices.
+#[derive(Clap)]
+#[clap(setting = AppSettings::ColoredHelp)]
+struct Opts {
+    /// The TA file to open
+    file: PathBuf,
+    /// The action to perform
+    #[clap(subcommand)]
+    func: Func,
 }
 
 static BOOTLOG_OFFSET: [usize; 11] = [
@@ -109,31 +124,13 @@ fn dump_sqlitedb(ta_file_content: &[char]) -> Result<()> {
 }
 
 fn main() -> Result<()> {
+    let opts = Opts::parse();
+
     const TA_EXPECTED_SIZE_BYTES: usize = 2097152; /* TODO: SMxxxx devices seem to use a new format. */
-    let action: String = std::env::args()
-        .nth(1)
-        .expect("No action given. Try unTAmed help.");
 
-    // We are helpful around here. Want help? Get help.
-    if action == "help" {
-        print_help();
-        return Ok(());
-    };
+    println!("Opening file: {:?}", opts.file);
 
-    let filename: String = std::env::args()
-        .nth(2)
-        .expect("No filename given. Try unTAmed help.");
-    let num_args: usize = std::env::args().len();
-
-    // Not enough arguments to mess with TA -> print help
-    if num_args < 3 {
-        print_help();
-        return Ok(());
-    };
-
-    println!("Opening file: {}", filename);
-
-    let mut ta_file = File::open(filename)?;
+    let mut ta_file = File::open(opts.file)?;
 
     match ta_file.metadata().unwrap().len() as usize {
         TA_EXPECTED_SIZE_BYTES => println! {"TA size in tact, proceeding.."},
@@ -155,12 +152,11 @@ fn main() -> Result<()> {
 
     let content: Vec<char> = content.iter().map(|b| *b as char).collect::<Vec<_>>();
 
-    match action.as_str() {
-        "dump_bootlogs" => dump_bootlogs(&content),
-        "dump_sqlitedb" => dump_sqlitedb(&content)?,
-        "show_build" => show_build(&content),
-        "show_serialno" => show_serialno(&content),
-        _ => println!("Unknown operation '{}'", action), // How did we get here?
+    match opts.func {
+        Func::DumpBootlogs => dump_bootlogs(&content),
+        Func::DumpSqlitedb => dump_sqlitedb(&content)?,
+        Func::ShowBuildid => show_build(&content),
+        Func::ShowSerial => show_serialno(&content),
     }
 
     Ok(())
