@@ -82,10 +82,10 @@ fn dump_sqlitedb(ta_file_content: &[char]) {
     println!(
         "SQLite DB size: 2^{:?} ({} B)",
         sqlitedb_len,
-        (2 as i32).pow(sqlitedb_len as u32)
+        (2i32).pow(sqlitedb_len as u32)
     );
 
-    sqlitedb_len = (2 as usize).pow(sqlitedb_len as u32);
+    sqlitedb_len = (2usize).pow(sqlitedb_len as u32);
 
     let mut sqlitedb: Vec<char> = Default::default();
     sqlitedb.extend(ta_file_content[SQLITEDB_OFFSET..SQLITEDB_OFFSET + sqlitedb_len].iter());
