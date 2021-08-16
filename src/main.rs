@@ -1,14 +1,44 @@
 // Licensing: See the LICENSE file
 
-use clap::{AppSettings, Clap};
+use clap::{AppSettings, ArgEnum, Clap};
 use std::fs::{write, File};
 use std::io::{prelude::*, Result};
 use std::path::PathBuf;
 
-#[derive(Clap)]
+#[derive(ArgEnum, Copy, Clone, Debug)]
+enum Platform {
+    Loire,
+    Tone,
+    Yoshino,
+    Nile,
+    Tama,
+    Ganges,
+    Kumano,
+    Seine,
+    Edo,
+    Lena,
+    Sagami,
+}
+
+impl Platform {
+    fn bootlog_offset(self) -> [usize; 10] {
+        match self {
+            Self::Tama => [
+                0x2A22E, 0x2DA22, 0x31CEE, 0x3542A, 0x38C46, 0x3C7A2, 0x65412, 0x68C2E, 0x6C78A,
+                0x70A2E,
+            ],
+            p => todo!("No bootlog offsets for `{:?}` yet!", p),
+        }
+    }
+}
+
+#[derive(Clap, Debug)]
 enum Func {
     /// Dump boot logs (TA stores up to ten of these)
-    DumpBootlogs,
+    DumpBootlogs {
+        #[clap(arg_enum)]
+        platform: Platform,
+    },
     /// Dump the internal SQLite database
     DumpSqlitedb,
     /// Show build number
@@ -28,40 +58,19 @@ struct Opts {
     func: Func,
 }
 
-static BOOTLOG_OFFSET: [usize; 11] = [
-    0,       // 0-element, ignore
-    0x2A22E, // 1
-    0x2DA22, // 2
-    0x31CEE, // 3
-    0x3542A, // 4
-    0x38C46, // 5
-    0x3C7A2, // 6
-    0x65412, // 7
-    0x68C2E, // 8
-    0x6C78A, // 9
-    0x70A2E, // 10
-];
-
 fn read_ta(ta_file_content: &[char], offset: usize, length: usize) -> String {
     return ta_file_content[offset..offset + length].iter().collect();
 }
 
-fn dump_bootlogs(ta_file_content: &[char]) {
+fn dump_bootlogs(platform: Platform, ta_file_content: &[char]) {
     const BOOTLOG_SIZE: usize = 14309;
 
-    // We have 10 bootlogs but want to keep the indices sane
-    let mut bootlogs: [String; 11] = Default::default();
-    let mut temp_filename: String;
-    for i in 1..11 {
-        println!(
-            "Dumping bootlog {} at {}..",
-            i,
-            format!("{:X}", BOOTLOG_OFFSET[i])
-        );
-        bootlogs[i] = read_ta(ta_file_content, BOOTLOG_OFFSET[i], BOOTLOG_SIZE);
-        temp_filename = format!("bootlogs/bootlog{}.txt", i);
-        println!("writing to {}", temp_filename);
-        write(temp_filename, &bootlogs[i]).expect("Could not dump bootlog..");
+    for (i, &offset) in platform.bootlog_offset().iter().enumerate() {
+        println!("Dumping bootlog {} at {:x}..", i, offset);
+        let bootlog = read_ta(ta_file_content, offset, BOOTLOG_SIZE);
+        let filename = format!("bootlogs/bootlog{}.txt", i);
+        println!("writing to {}", filename);
+        write(filename, &bootlog).expect("Could not dump bootlog..");
     }
 }
 
@@ -153,7 +162,7 @@ fn main() -> Result<()> {
     let content: Vec<char> = content.iter().map(|b| *b as char).collect::<Vec<_>>();
 
     match opts.func {
-        Func::DumpBootlogs => dump_bootlogs(&content),
+        Func::DumpBootlogs { platform } => dump_bootlogs(platform, &content),
         Func::DumpSqlitedb => dump_sqlitedb(&content)?,
         Func::ShowBuildid => show_build(&content),
         Func::ShowSerial => show_serialno(&content),
